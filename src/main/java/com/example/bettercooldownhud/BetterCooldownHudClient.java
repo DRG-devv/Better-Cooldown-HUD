@@ -7,8 +7,8 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
 
 public class BetterCooldownHudClient implements ClientModInitializer {
-    private static final int GREY = 0xAA444444;
-    private static final int GREEN = 0xFF33CC33;
+    private static final int GREY = 0x66666666;
+    private static final float TWO_PI = (float) (Math.PI * 2.0);
 
     @Override
     public void onInitializeClient() {
@@ -17,31 +17,61 @@ public class BetterCooldownHudClient implements ClientModInitializer {
                 renderRing(context, tickCounter.getTickProgress(false)));
     }
 
-    private static void renderRing(DrawContext context, float tickDelta) {
+    /** True when the ring is drawn, so the vanilla crosshair can be hidden. */
+    public static boolean isActive() {
         MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || client.currentScreen != null) {
+        return client.player != null && client.world != null && client.currentScreen == null;
+    }
+
+    private static void renderRing(DrawContext context, float tickDelta) {
+        if (!isActive()) {
             return;
         }
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
 
         float progress = player.getAttackCooldownProgress(tickDelta);
-
-        // Hide the ring when fully charged, unless always_show is on
         if (!BetterCooldownConfig.alwaysShow && progress >= 1.0f) {
             return;
         }
 
-        int cx = client.getWindow().getScaledWidth() / 2;
-        int cy = client.getWindow().getScaledHeight() / 2;
-        int radius = BetterCooldownConfig.radius;
+        // Exact center of the screen, including half pixels, so the ring is centered
+        float cx = client.getWindow().getScaledWidth() / 2.0f;
+        float cy = client.getWindow().getScaledHeight() / 2.0f;
+        float radius = BetterCooldownConfig.radius;
+        float half = BetterCooldownConfig.thickness / 2.0f;
+        int filled = BetterCooldownConfig.currentColor();
 
-        // One dot per degree, starting at the top and going clockwise
-        for (int deg = 0; deg < 360; deg++) {
-            int color = deg < progress * 360f ? GREEN : GREY;
-            double rad = Math.toRadians(deg - 90);
-            int x = cx + (int) Math.round(Math.cos(rad) * radius);
-            int y = cy + (int) Math.round(Math.sin(rad) * radius);
-            context.fill(x - 1, y - 1, x + 1, y + 1, color);
+        int minX = (int) Math.floor(cx - radius - half - 1);
+        int maxX = (int) Math.ceil(cx + radius + half + 1);
+        int minY = (int) Math.floor(cy - radius - half - 1);
+        int maxY = (int) Math.ceil(cy + radius + half + 1);
+
+        for (int py = minY; py < maxY; py++) {
+            for (int px = minX; px < maxX; px++) {
+                float dx = px + 0.5f - cx;
+                float dy = py + 0.5f - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy);
+
+                // How far this pixel sits inside the ring edge (anti-aliasing)
+                float edge = half - Math.abs(dist - radius);
+                float coverage = Math.min(1.0f, edge + 0.5f);
+                if (coverage <= 0.0f) {
+                    continue;
+                }
+
+                // Clockwise angle from the top, 0 to 1
+                float angle = (float) Math.atan2(dx, -dy);
+                if (angle < 0.0f) {
+                    angle += TWO_PI;
+                }
+                float fraction = angle / TWO_PI;
+
+                int base = fraction < progress ? filled : GREY;
+                int alpha = (int) (((base >>> 24) & 0xFF) * coverage);
+                int color = (alpha << 24) | (base & 0xFFFFFF);
+                context.fill(px, py, px + 1, py + 1, color);
+            }
         }
     }
 }
