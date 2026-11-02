@@ -1,0 +1,10 @@
+{
+  "required": true,
+  "package": "com.example.bettercooldownhud.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": ["InGameHudMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
