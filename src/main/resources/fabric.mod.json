@@ -9,7 +9,8 @@
   "environment": "client",
   "entrypoints": {
     "client": ["com.example.bettercooldownhud.BetterCooldownHudClient"],
-    "modmenu": ["com.example.bettercooldownhud.BetterCooldownModMenu"]
+    "modmenu": ["com.example.bettercooldownhud.BetterCooldownModMenu"],
+      "mixins": ["bettercooldownhud.mixins.json"],
   }
   "depends": {
     "fabricloader": ">=0.16.0",
