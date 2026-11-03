@@ -1,28 +1,24 @@
 package com.example.bettercooldownhud;
 
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import net.minecraft.util.Identifier;
 
 public class BetterCooldownHudClient implements ClientModInitializer {
-    private static final int GREY = 0x66666666;
-    private static final float TWO_PI = (float) (Math.PI * 2.0);
+    private static final Identifier RING = Identifier.of("bettercooldownhud", "ring");
+    private static final RenderPipeline PIPELINE = RenderPipelines.GUI_TEXTURED;
 
-    /** One ring pixel with its clockwise position from the top (0 to 1). */
-    private record Dot(int x, int y, float fraction) {}
+    // Faint white ring shown behind the progress
+    private static final int BASE_COLOR = 0x66FFFFFF;
 
-    // Precomputed ring, rebuilt only when size, radius, or thickness changes
-    private static final List<Dot> dots = new ArrayList<>();
-    private static int builtWidth = -1;
-    private static int builtHeight = -1;
-    private static int builtRadius = -1;
-    private static float builtThickness = -1f;
+    // Fine-tune the ring position in pixels (try -1, 0, or 1)
+    private static final int OFFSET_X = 0;
+    private static final int OFFSET_Y = 0;
 
     @Override
     public void onInitializeClient() {
@@ -43,60 +39,20 @@ public class BetterCooldownHudClient implements ClientModInitializer {
             return;
         }
 
-        ensureBuilt(client);
+        int cx = client.getWindow().getScaledWidth() / 2;
+        int cy = client.getWindow().getScaledHeight() / 2;
 
-        // Dots are sorted clockwise, so the first N dots are the charged part
-        int filledCount = (int) (progress * dots.size());
-        int filledColor = BetterCooldownConfig.currentColor();
+        // The 128 px ring image has its centre line at 56 px from the middle,
+        // so scale the image so that line matches the radius setting
+        int size = Math.round(BetterCooldownConfig.radius * 128f / 56f) * 2;
+        int x = cx - size / 2 + OFFSET_X;
+        int y = cy - size / 2 + OFFSET_Y;
 
-        for (int i = 0; i < dots.size(); i++) {
-            Dot d = dots.get(i);
-            context.fill(d.x(), d.y(), d.x() + 1, d.y() + 1, i < filledCount ? filledColor : GREY);
-        }
-    }
+        // Dim base ring, then the coloured ring fading in as the cooldown recharges
+        context.drawGuiTexture(PIPELINE, RING, x, y, size, size, BASE_COLOR);
 
-    private static void ensureBuilt(MinecraftClient client) {
-        int width = client.getWindow().getScaledWidth();
-        int height = client.getWindow().getScaledHeight();
-        int radius = BetterCooldownConfig.radius;
-        float thickness = BetterCooldownConfig.thickness;
-
-        if (width == builtWidth && height == builtHeight
-                && radius == builtRadius && thickness == builtThickness) {
-            return;
-        }
-
-        dots.clear();
-        int cx = width / 2;
-        int cy = height / 2;
-        float half = thickness / 2.0f;
-        int reach = (int) Math.ceil(radius + half) + 1;
-
-        for (int py = cy - reach; py <= cy + reach; py++) {
-            for (int px = cx - reach; px <= cx + reach; px++) {
-                // Measure from the pixel center so the ring is symmetric around the crosshair
-                float dx = px + 0.5f - cx;
-                float dy = py + 0.5f - cy;
-                float dist = (float) Math.sqrt(dx * dx + dy * dy);
-
-                // Hard edge: a pixel is either in the ring or not, so the edge stays sharp
-                if (Math.abs(dist - radius) > half) {
-                    continue;
-                }
-
-                float angle = (float) Math.atan2(dx, -dy);
-                if (angle < 0.0f) {
-                    angle += TWO_PI;
-                }
-                dots.add(new Dot(px, py, angle / TWO_PI));
-            }
-        }
-
-        dots.sort(Comparator.comparingDouble(Dot::fraction));
-
-        builtWidth = width;
-        builtHeight = height;
-        builtRadius = radius;
-        builtThickness = thickness;
+        int alpha = Math.round(progress * 255f);
+        int fg = (alpha << 24) | (BetterCooldownConfig.currentColor() & 0xFFFFFF);
+        context.drawGuiTexture(PIPELINE, RING, x, y, size, size, fg);
     }
 }
