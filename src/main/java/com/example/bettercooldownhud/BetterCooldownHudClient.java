@@ -16,12 +16,15 @@ public class BetterCooldownHudClient implements ClientModInitializer {
     // Size of the ring image in pixels
     private static final int TEXTURE_SIZE = 128;
 
+    // Distance from the image centre to the ring's centre line, in pixels
+    private static final float RING_CENTRE_IN_TEXTURE = 56f;
+
     // Faint white ring shown behind the progress
     private static final int BASE_COLOR = 0x66FFFFFF;
 
-    // Position correction in pixels, measured from the crosshair
-    private static final int OFFSET_X = 27;
-    private static final int OFFSET_Y = 16;
+    // Fine-tune in pixels after measuring; 0 means exactly on the crosshair centre
+    private static final int FINE_X = 0;
+    private static final int FINE_Y = 0;
 
     @Override
     public void onInitializeClient() {
@@ -42,14 +45,16 @@ public class BetterCooldownHudClient implements ClientModInitializer {
             return;
         }
 
-        int cx = client.getWindow().getScaledWidth() / 2;
-        int cy = client.getWindow().getScaledHeight() / 2;
+        // Origin: the exact centre of the screen, where the crosshair sits
+        int originX = client.getWindow().getScaledWidth() / 2;
+        int originY = client.getWindow().getScaledHeight() / 2;
 
-        // The 128 px ring image has its centre line at 56 px from the middle,
-        // so scale the image so that line matches the radius setting
-        int size = Math.round(BetterCooldownConfig.radius * 128f / 56f) * 2;
-        int x = cx - size / 2 + OFFSET_X;
-        int y = cy - size / 2 + OFFSET_Y;
+        // Scale the image so its centre line matches the radius setting
+        int size = Math.round(BetterCooldownConfig.radius * TEXTURE_SIZE / RING_CENTRE_IN_TEXTURE) * 2;
+
+        // Top-left corner of the image, measured from the origin
+        int x = originX - size / 2 + FINE_X;
+        int y = originY - size / 2 + FINE_Y;
 
         // Faint full ring behind
         context.drawGuiTexture(PIPELINE, RING, x, y, size, size, BASE_COLOR);
