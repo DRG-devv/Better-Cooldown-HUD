@@ -13,12 +13,15 @@ public class BetterCooldownHudClient implements ClientModInitializer {
     private static final Identifier RING = Identifier.of("bettercooldownhud", "ring");
     private static final RenderPipeline PIPELINE = RenderPipelines.GUI_TEXTURED;
 
+    // Size of the ring image in pixels
+    private static final int TEXTURE_SIZE = 128;
+
     // Faint white ring shown behind the progress
     private static final int BASE_COLOR = 0x66FFFFFF;
 
-    // Fine-tune the ring position in pixels (try -1, 0, or 1)
-    private static final int OFFSET_X = 0;
-    private static final int OFFSET_Y = 0;
+    // Position correction in pixels, measured from the crosshair
+    private static final int OFFSET_X = 27;
+    private static final int OFFSET_Y = 16;
 
     @Override
     public void onInitializeClient() {
@@ -48,11 +51,19 @@ public class BetterCooldownHudClient implements ClientModInitializer {
         int x = cx - size / 2 + OFFSET_X;
         int y = cy - size / 2 + OFFSET_Y;
 
-        // Dim base ring, then the coloured ring fading in as the cooldown recharges
+        // Faint full ring behind
         context.drawGuiTexture(PIPELINE, RING, x, y, size, size, BASE_COLOR);
 
-        int alpha = Math.round(progress * 255f);
-        int fg = (alpha << 24) | (BetterCooldownConfig.currentColor() & 0xFFFFFF);
-        context.drawGuiTexture(PIPELINE, RING, x, y, size, size, fg);
+        // Coloured ring revealed from the bottom up, like the vanilla cooldown
+        int visibleTex = Math.round(TEXTURE_SIZE * progress);
+        if (visibleTex <= 0) {
+            return;
+        }
+        int v = TEXTURE_SIZE - visibleTex;
+        int visibleHeight = Math.round(size * progress);
+        int fillColor = BetterCooldownConfig.currentColor() | 0xFF000000;
+
+        context.drawGuiTexture(PIPELINE, RING, TEXTURE_SIZE, TEXTURE_SIZE, 0, v,
+                x, y + size - visibleHeight, size, visibleHeight, fillColor);
     }
 }
