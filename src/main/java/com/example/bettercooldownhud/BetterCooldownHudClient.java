@@ -1,74 +1,57 @@
 package com.example.bettercooldownhud;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.util.Identifier;
 
 public class BetterCooldownHudClient implements ClientModInitializer {
-    private static final Identifier RING = Identifier.of("bettercooldownhud", "ring");
-    private static final RenderPipeline PIPELINE = RenderPipelines.GUI_TEXTURED;
-
-    // Size of the ring image in pixels
-    private static final int TEXTURE_SIZE = 128;
-
-    // Distance from the image centre to the ring's centre line, in pixels
-    private static final float RING_CENTRE_IN_TEXTURE = 56f;
-
-    // Faint white ring shown behind the progress
-    private static final int BASE_COLOR = 0x66FFFFFF;
-
-    // Fine-tune in pixels after measuring; 0 means exactly on the crosshair centre
-    private static final int FINE_X = 0;
-    private static final int FINE_Y = 0;
+    // How many pixels each arm can fill, measured from the centre pixel
+    private static final int ARM_LENGTH = 5;
+    private static final int WHITE = 0xFFFFFFFF;
 
     @Override
     public void onInitializeClient() {
         BetterCooldownConfig.load();
         HudRenderCallback.EVENT.register((context, tickCounter) ->
-                renderRing(context, tickCounter.getTickProgress(false)));
+                renderCrosshair(context, tickCounter.getTickProgress(false)));
     }
 
-    private static void renderRing(DrawContext context, float tickDelta) {
+    private static void renderCrosshair(DrawContext context, float tickDelta) {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientPlayerEntity player = client.player;
         if (player == null || client.world == null || client.currentScreen != null) {
             return;
         }
 
+        int cx = client.getWindow().getScaledWidth() / 2;
+        int cy = client.getWindow().getScaledHeight() / 2;
+
+        // Default white crosshair: 9 px arms, 1 px thick
+        context.fill(cx - 4, cy, cx + 5, cy + 1, WHITE);
+        context.fill(cx, cy - 4, cx + 1, cy + 5, WHITE);
+
         float progress = player.getAttackCooldownProgress(tickDelta);
-        if (!BetterCooldownConfig.alwaysShow && progress >= 1.0f) {
+
+        // Fully charged: default crosshair only
+        if (progress >= 1.0f || progress <= 0.0f) {
             return;
         }
 
-        // Origin: the exact centre of the screen, where the crosshair sits
-        int originX = client.getWindow().getScaledWidth() / 2;
-        int originY = client.getWindow().getScaledHeight() / 2;
+        // Number of pixels filled on each arm, growing outward as the cooldown recharges
+        int filled = Math.min(ARM_LENGTH, (int) Math.ceil(progress * ARM_LENGTH));
+        int color = BetterCooldownConfig.currentColor();
 
-        // Scale the image so its centre line matches the radius setting
-        int size = Math.round(BetterCooldownConfig.radius * TEXTURE_SIZE / RING_CENTRE_IN_TEXTURE) * 2;
+        // Centre pixel
+        context.fill(cx, cy, cx + 1, cy + 1, color);
 
-        // Top-left corner of the image, measured from the origin
-        int x = originX - size / 2 + FINE_X;
-        int y = originY - size / 2 + FINE_Y;
-
-        // Faint full ring behind
-        context.drawGuiTexture(PIPELINE, RING, x, y, size, size, BASE_COLOR);
-
-        // Coloured ring revealed from the bottom up, like the vanilla cooldown
-        int visibleTex = Math.round(TEXTURE_SIZE * progress);
-        if (visibleTex <= 0) {
-            return;
+        // Each arm, one pixel at a time from the centre outward
+        for (int n = 1; n <= filled; n++) {
+            context.fill(cx + n, cy, cx + n + 1, cy + 1, color);
+            context.fill(cx - n, cy, cx - n + 1, cy + 1, color);
+            context.fill(cx, cy + n, cx + 1, cy + n + 1, color);
+            context.fill(cx, cy - n, cx + 1, cy - n + 1, color);
         }
-        int v = TEXTURE_SIZE - visibleTex;
-        int visibleHeight = Math.round(size * progress);
-        int fillColor = BetterCooldownConfig.currentColor() | 0xFF000000;
-
-        context.drawGuiTexture(PIPELINE, RING, TEXTURE_SIZE, TEXTURE_SIZE, 0, v,
-                x, y + size - visibleHeight, size, visibleHeight, fillColor);
     }
 }
