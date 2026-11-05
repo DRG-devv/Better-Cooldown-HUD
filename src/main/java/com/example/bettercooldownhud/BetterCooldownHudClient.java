@@ -6,11 +6,9 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.ClientPlayerEntity;
 
-public class BetterCooldownHudClient implements ClientModInitializer {
-    // How many pixels each arm can fill, measured from the centre pixel
-    private static final int ARM_LENGTH = 5;
-    private static final int WHITE = 0xFFFFFFFF;
+import java.util.List;
 
+public class BetterCooldownHudClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         BetterCooldownConfig.load();
@@ -25,33 +23,25 @@ public class BetterCooldownHudClient implements ClientModInitializer {
             return;
         }
 
+        List<Integer> cells = BetterCooldownConfig.activeShape();
+        int count = cells.size();
         int cx = client.getWindow().getScaledWidth() / 2;
         int cy = client.getWindow().getScaledHeight() / 2;
-
-        // Default white crosshair: 9 px arms, 1 px thick
-        context.fill(cx - 4, cy, cx + 5, cy + 1, WHITE);
-        context.fill(cx, cy - 4, cx + 1, cy + 5, WHITE);
+        int px = Math.max(1, BetterCooldownConfig.crosshairSize);
 
         float progress = player.getAttackCooldownProgress(tickDelta);
 
-        // Fully charged: default crosshair only
-        if (progress >= 1.0f || progress <= 0.0f) {
-            return;
-        }
+        // Cells before this index are ready (crosshair colour); the rest are still cooling down (cooldown colour)
+        int ready = Math.min(count, (int) Math.floor(progress * count));
 
-        // Number of pixels filled on each arm, growing outward as the cooldown recharges
-        int filled = Math.min(ARM_LENGTH, (int) Math.ceil(progress * ARM_LENGTH));
-        int color = BetterCooldownConfig.currentColor();
-
-        // Centre pixel
-        context.fill(cx, cy, cx + 1, cy + 1, color);
-
-        // Each arm, one pixel at a time from the centre outward
-        for (int n = 1; n <= filled; n++) {
-            context.fill(cx + n, cy, cx + n + 1, cy + 1, color);
-            context.fill(cx - n, cy, cx - n + 1, cy + 1, color);
-            context.fill(cx, cy + n, cx + 1, cy + n + 1, color);
-            context.fill(cx, cy - n, cx + 1, cy - n + 1, color);
+        for (int i = 0; i < count; i++) {
+            int idx = cells.get(i);
+            int gx = idx % BetterCooldownConfig.GRID - BetterCooldownConfig.ORIGIN;
+            int gy = idx / BetterCooldownConfig.GRID - BetterCooldownConfig.ORIGIN;
+            int sx = cx + gx * px;
+            int sy = cy + gy * px;
+            int colour = i < ready ? BetterCooldownConfig.crosshairColor : BetterCooldownConfig.cooldownColor;
+            context.fill(sx, sy, sx + px, sy + px, colour);
         }
     }
 }
