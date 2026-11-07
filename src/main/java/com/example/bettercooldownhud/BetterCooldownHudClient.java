@@ -23,7 +23,7 @@ public class BetterCooldownHudClient implements ClientModInitializer {
             return;
         }
 
-        List<Integer> cells = BetterCooldownConfig.activeShape();
+        List<Integer> cells = BetterCooldownConfig.sweepOrder();
         int count = cells.size();
         int cx = client.getWindow().getScaledWidth() / 2;
         int cy = client.getWindow().getScaledHeight() / 2;
@@ -31,7 +31,7 @@ public class BetterCooldownHudClient implements ClientModInitializer {
 
         float progress = player.getAttackCooldownProgress(tickDelta);
 
-        // Cells before this index are ready (crosshair colour); the rest are still cooling down (cooldown colour)
+        // Cells earlier in the sweep are ready (crosshair colour); the rest are still cooling down (cooldown colour)
         int ready = Math.min(count, (int) Math.floor(progress * count));
 
         for (int i = 0; i < count; i++) {
