@@ -11,6 +11,9 @@ import java.util.List;
 
 public class BetterCooldownScreen extends Screen {
     private static final int SWATCH = 12;
+    private static final int GRID = BetterCooldownConfig.GRID;
+    private static final int YELLOW = 0xFFFFE04D;
+    private static final int GREY = 0xFF888888;
 
     private final Screen parent;
     private int cell;
@@ -28,9 +31,8 @@ public class BetterCooldownScreen extends Screen {
 
     @Override
     protected void init() {
-        int grid = BetterCooldownConfig.GRID;
-        cell = Math.max(12, Math.min(20, (this.height - 170) / grid));
-        int gridPixels = cell * grid;
+        cell = Math.max(10, Math.min(22, (this.height - 200) / GRID));
+        int gridPixels = cell * GRID;
         gridX = this.width / 2 - gridPixels / 2;
         gridY = 20;
 
@@ -52,8 +54,10 @@ public class BetterCooldownScreen extends Screen {
             b.setMessage(sizeText());
         }).dimensions(leftX, rowY + 24, buttonW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), b -> BetterCooldownConfig.shape.clear())
-                .dimensions(rightX, rowY + 24, buttonW, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), b -> {
+            BetterCooldownConfig.shape.clear();
+            BetterCooldownConfig.start = -1;
+        }).dimensions(rightX, rowY + 24, buttonW, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
                 .dimensions(this.width / 2 - 60, rowY + 48, 120, 20).build());
@@ -80,44 +84,66 @@ public class BetterCooldownScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        int grid = BetterCooldownConfig.GRID;
         List<Integer> shape = BetterCooldownConfig.shape;
 
-        // Empty grid background
-        for (int gy = 0; gy < grid; gy++) {
-            for (int gx = 0; gx < grid; gx++) {
+        // Dark grid background
+        for (int gy = 0; gy < GRID; gy++) {
+            for (int gx = 0; gx < GRID; gx++) {
                 int x = gridX + gx * cell;
                 int y = gridY + gy * cell;
-                context.fill(x, y, x + cell - 1, y + cell - 1, 0x33FFFFFF);
+                context.fill(x, y, x + cell - 1, y + cell - 1, 0xFF0A0A0A);
+            }
+        }
+
+        // Faint preview of the default plus when nothing is painted yet
+        if (shape.isEmpty()) {
+            int faint = 0x66000000 | (BetterCooldownConfig.crosshairColor & 0xFFFFFF);
+            for (int idx : BetterCooldownConfig.activeShape()) {
+                fillCell(context, idx, faint);
             }
         }
 
         // Painted cells in the crosshair colour
         for (int idx : shape) {
-            int x = gridX + (idx % grid) * cell;
-            int y = gridY + (idx / grid) * cell;
-            context.fill(x, y, x + cell - 1, y + cell - 1, BetterCooldownConfig.crosshairColor);
+            fillCell(context, idx, BetterCooldownConfig.crosshairColor);
         }
 
-        // Yellow outline on the first pixel drawn, where the cooldown starts
-        if (!shape.isEmpty()) {
-            int first = shape.get(0);
-            int x = gridX + (first % grid) * cell;
-            int y = gridY + (first / grid) * cell;
-            int yellow = 0xFFFFE04D;
-            context.fill(x - 1, y - 1, x + cell, y, yellow);
-            context.fill(x - 1, y + cell - 1, x + cell, y + cell, yellow);
-            context.fill(x - 1, y - 1, x, y + cell, yellow);
-            context.fill(x + cell - 1, y - 1, x + cell, y + cell, yellow);
-        }
+        // Grey outline on the centre cell (0,0)
+        outlineCell(context, BetterCooldownConfig.ORIGIN_INDEX, GREY);
 
-        // Colour swatches at the right edge of the colour buttons
+        // Yellow outline on the cell where the cooldown starts
+        outlineCell(context, BetterCooldownConfig.startCell(), YELLOW);
+
+        // Colour swatches beside the colour buttons
         drawSwatch(context, leftX + buttonW - SWATCH - 6, rowY + 4, BetterCooldownConfig.crosshairColor);
         drawSwatch(context, rightX + buttonW - SWATCH - 6, rowY + 4, BetterCooldownConfig.cooldownColor);
 
+        int noteY = rowY + 74;
         context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("First pixel drawn (yellow) = where the attack cooldown starts"),
-                this.width / 2, rowY + 74, 0xFFFFFF);
+                Text.literal("Left-click a painted cell: set where the cooldown starts (yellow)"),
+                this.width / 2, noteY, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer,
+                Text.literal("Left-click an empty cell: paint   |   Right-click: erase"),
+                this.width / 2, noteY + 12, 0xFFFFFF);
+        String connected = BetterCooldownConfig.originConnected() ? "Yes" : "No";
+        context.drawCenteredTextWithShadow(this.textRenderer,
+                Text.literal("Centre (grey) connected to drawing: " + connected),
+                this.width / 2, noteY + 24, 0xFFFFFF);
+    }
+
+    private void fillCell(DrawContext context, int idx, int colour) {
+        int x = gridX + (idx % GRID) * cell;
+        int y = gridY + (idx / GRID) * cell;
+        context.fill(x, y, x + cell - 1, y + cell - 1, colour);
+    }
+
+    private void outlineCell(DrawContext context, int idx, int colour) {
+        int x = gridX + (idx % GRID) * cell;
+        int y = gridY + (idx / GRID) * cell;
+        context.fill(x - 1, y - 1, x + cell, y, colour);
+        context.fill(x - 1, y + cell - 1, x + cell, y + cell, colour);
+        context.fill(x - 1, y - 1, x, y + cell, colour);
+        context.fill(x + cell - 1, y - 1, x + cell, y + cell, colour);
     }
 
     private static void drawSwatch(DrawContext context, int x, int y, int colour) {
@@ -127,7 +153,7 @@ public class BetterCooldownScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        if (paintAt(click.x(), click.y(), click.button() == 1)) {
+        if (handleClick(click.x(), click.y(), click.button() == 1, false)) {
             return true;
         }
         return super.mouseClicked(click, doubled);
@@ -135,29 +161,47 @@ public class BetterCooldownScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        if (paintAt(click.x(), click.y(), click.button() == 1)) {
+        if (handleClick(click.x(), click.y(), click.button() == 1, true)) {
             return true;
         }
         return super.mouseDragged(click, deltaX, deltaY);
     }
 
-    /** Left click or drag paints a cell (appended in paint order); right click erases it. */
-    private boolean paintAt(double mouseX, double mouseY, boolean erase) {
-        int grid = BetterCooldownConfig.GRID;
-        int gx = (int) Math.floor((mouseX - gridX) / cell);
-        int gy = (int) Math.floor((mouseY - gridY) / cell);
-        if (gx < 0 || gy < 0 || gx >= grid || gy >= grid) {
+    /**
+     * Left click on an empty cell paints it. Left click on a painted cell sets the start (not while dragging).
+     * Right click or right drag erases a cell.
+     */
+    private boolean handleClick(double mouseX, double mouseY, boolean right, boolean dragging) {
+        int idx = cellAt(mouseX, mouseY);
+        if (idx < 0) {
             return false;
         }
 
-        int idx = gy * grid + gx;
         List<Integer> shape = BetterCooldownConfig.shape;
-        if (erase) {
-            shape.remove(Integer.valueOf(idx));
-        } else if (!shape.contains(idx)) {
+        if (right) {
+            if (shape.remove(Integer.valueOf(idx)) && idx == BetterCooldownConfig.start) {
+                BetterCooldownConfig.start = -1;
+            }
+            return true;
+        }
+
+        if (shape.contains(idx)) {
+            if (!dragging) {
+                BetterCooldownConfig.start = idx;
+            }
+        } else {
             shape.add(idx);
         }
         return true;
+    }
+
+    private int cellAt(double mouseX, double mouseY) {
+        int gx = (int) Math.floor((mouseX - gridX) / cell);
+        int gy = (int) Math.floor((mouseY - gridY) / cell);
+        if (gx < 0 || gy < 0 || gx >= GRID || gy >= GRID) {
+            return -1;
+        }
+        return gy * GRID + gx;
     }
 
     @Override
