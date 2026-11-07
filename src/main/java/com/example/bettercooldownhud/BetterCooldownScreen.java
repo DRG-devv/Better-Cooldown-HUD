@@ -1,19 +1,25 @@
 package com.example.bettercooldownhud;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
-import net.minecraft.client.gui.Click;
 
 import java.util.List;
 
 public class BetterCooldownScreen extends Screen {
+    private static final int SWATCH = 12;
+
     private final Screen parent;
     private int cell;
     private int gridX;
     private int gridY;
+    private int rowY;
+    private int leftX;
+    private int rightX;
+    private int buttonW;
 
     public BetterCooldownScreen(Screen parent) {
         super(Text.literal("Better Cooldown HUD"));
@@ -23,44 +29,34 @@ public class BetterCooldownScreen extends Screen {
     @Override
     protected void init() {
         int grid = BetterCooldownConfig.GRID;
-        cell = Math.max(3, Math.min(10, (this.height - 150) / grid));
+        cell = Math.max(12, Math.min(20, (this.height - 170) / grid));
         int gridPixels = cell * grid;
         gridX = this.width / 2 - gridPixels / 2;
-        gridY = 24;
+        gridY = 20;
 
-        int rowY = gridY + gridPixels + 10;
-        int w = 110;
-        int left = this.width / 2 - w - 3;
-        int right = this.width / 2 + 3;
+        rowY = gridY + gridPixels + 12;
+        buttonW = 130;
+        leftX = this.width / 2 - buttonW - 4;
+        rightX = this.width / 2 + 4;
 
-        addDrawableChild(ButtonWidget.builder(crosshairText(), b -> {
-            BetterCooldownConfig.crosshairColor = nextColour(BetterCooldownConfig.crosshairColor);
-            b.setMessage(crosshairText());
-        }).dimensions(left, rowY, w, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Crosshair"), b ->
+                        BetterCooldownConfig.crosshairColor = nextColour(BetterCooldownConfig.crosshairColor))
+                .dimensions(leftX, rowY, buttonW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(cooldownText(), b -> {
-            BetterCooldownConfig.cooldownColor = nextColour(BetterCooldownConfig.cooldownColor);
-            b.setMessage(cooldownText());
-        }).dimensions(right, rowY, w, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Cooldown"), b ->
+                        BetterCooldownConfig.cooldownColor = nextColour(BetterCooldownConfig.cooldownColor))
+                .dimensions(rightX, rowY, buttonW, 20).build());
 
         addDrawableChild(ButtonWidget.builder(sizeText(), b -> {
             BetterCooldownConfig.crosshairSize = (BetterCooldownConfig.crosshairSize + 1) % 5;
             b.setMessage(sizeText());
-        }).dimensions(left, rowY + 24, w, 20).build());
+        }).dimensions(leftX, rowY + 24, buttonW, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), b -> BetterCooldownConfig.shape.clear())
-                .dimensions(right, rowY + 24, w, 20).build());
+                .dimensions(rightX, rowY + 24, buttonW, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
                 .dimensions(this.width / 2 - 60, rowY + 48, 120, 20).build());
-    }
-
-    private Text crosshairText() {
-        return Text.literal("Crosshair: #" + String.format("%06X", BetterCooldownConfig.crosshairColor & 0xFFFFFF));
-    }
-
-    private Text cooldownText() {
-        return Text.literal("Cooldown: #" + String.format("%06X", BetterCooldownConfig.cooldownColor & 0xFFFFFF));
     }
 
     private Text sizeText() {
@@ -115,10 +111,18 @@ public class BetterCooldownScreen extends Screen {
             context.fill(x + cell - 1, y - 1, x + cell, y + cell, yellow);
         }
 
-        int noteY = gridY + cell * grid + 10 + 76;
+        // Colour swatches at the right edge of the colour buttons
+        drawSwatch(context, leftX + buttonW - SWATCH - 6, rowY + 4, BetterCooldownConfig.crosshairColor);
+        drawSwatch(context, rightX + buttonW - SWATCH - 6, rowY + 4, BetterCooldownConfig.cooldownColor);
+
         context.drawCenteredTextWithShadow(this.textRenderer,
                 Text.literal("First pixel drawn (yellow) = where the attack cooldown starts"),
-                this.width / 2, noteY, 0xFFFFFF);
+                this.width / 2, rowY + 74, 0xFFFFFF);
+    }
+
+    private static void drawSwatch(DrawContext context, int x, int y, int colour) {
+        context.fill(x - 1, y - 1, x + SWATCH + 1, y + SWATCH + 1, 0xFF000000);
+        context.fill(x, y, x + SWATCH, y + SWATCH, colour);
     }
 
     @Override
