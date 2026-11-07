@@ -5,6 +5,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import net.minecraft.client.gui.Click;
 
 import java.util.List;
 
@@ -121,19 +122,19 @@ public class BetterCooldownScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (paintAt(mouseX, mouseY, button == 1)) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        if (paintAt(click.x(), click.y(), click.button() == 1)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (paintAt(mouseX, mouseY, button == 1)) {
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        if (paintAt(click.x(), click.y(), click.button() == 1)) {
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(click, deltaX, deltaY);
     }
 
     /** Left click or drag paints a cell (appended in paint order); right click erases it. */
