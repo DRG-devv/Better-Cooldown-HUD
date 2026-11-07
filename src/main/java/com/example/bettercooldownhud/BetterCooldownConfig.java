@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Properties;
 
 public final class BetterCooldownConfig {
-    public static final int GRID = 32;
+    public static final int GRID = 12;
     public static final int ORIGIN = GRID / 2; // grid cell that sits on the crosshair centre
 
     public static final int[] PALETTE = {
