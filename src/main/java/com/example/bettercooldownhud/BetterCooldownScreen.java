@@ -54,8 +54,9 @@ public class BetterCooldownScreen extends Screen {
             b.setMessage(sizeText());
         }).dimensions(leftX, rowY + 24, buttonW, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear"), b -> {
+        addDrawableChild(ButtonWidget.builder(Text.literal("Reset to default"), b -> {
             BetterCooldownConfig.shape.clear();
+            BetterCooldownConfig.shape.addAll(BetterCooldownConfig.defaultPlus());
             BetterCooldownConfig.start = -1;
         }).dimensions(rightX, rowY + 24, buttonW, 20).build());
 
@@ -84,7 +85,7 @@ public class BetterCooldownScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        List<Integer> shape = BetterCooldownConfig.shape;
+        List<Integer> shape = BetterCooldownConfig.activeShape();
 
         // Dark grid background
         for (int gy = 0; gy < GRID; gy++) {
@@ -95,15 +96,7 @@ public class BetterCooldownScreen extends Screen {
             }
         }
 
-        // Faint preview of the default plus when nothing is painted yet
-        if (shape.isEmpty()) {
-            int faint = 0x66000000 | (BetterCooldownConfig.crosshairColor & 0xFFFFFF);
-            for (int idx : BetterCooldownConfig.activeShape()) {
-                fillCell(context, idx, faint);
-            }
-        }
-
-        // Painted cells in the crosshair colour
+        // The crosshair being edited, in the crosshair colour
         for (int idx : shape) {
             fillCell(context, idx, BetterCooldownConfig.crosshairColor);
         }
@@ -125,9 +118,8 @@ public class BetterCooldownScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer,
                 Text.literal("Left-click an empty cell: paint   |   Right-click: erase"),
                 this.width / 2, noteY + 12, 0xFFFFFF);
-        String connected = BetterCooldownConfig.originConnected() ? "Yes" : "No";
         context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Centre (grey) connected to drawing: " + connected),
+                Text.literal("The cooldown sweeps left to right through every painted cell"),
                 this.width / 2, noteY + 24, 0xFFFFFF);
     }
 
@@ -169,7 +161,7 @@ public class BetterCooldownScreen extends Screen {
 
     /**
      * Left click on an empty cell paints it. Left click on a painted cell sets the start (not while dragging).
-     * Right click or right drag erases a cell.
+     * Right click erases a cell, but never the last one.
      */
     private boolean handleClick(double mouseX, double mouseY, boolean right, boolean dragging) {
         int idx = cellAt(mouseX, mouseY);
@@ -179,8 +171,10 @@ public class BetterCooldownScreen extends Screen {
 
         List<Integer> shape = BetterCooldownConfig.shape;
         if (right) {
-            if (shape.remove(Integer.valueOf(idx)) && idx == BetterCooldownConfig.start) {
-                BetterCooldownConfig.start = -1;
+            if (shape.size() > 1 && shape.remove(Integer.valueOf(idx))) {
+                if (idx == BetterCooldownConfig.start) {
+                    BetterCooldownConfig.start = -1;
+                }
             }
             return true;
         }
