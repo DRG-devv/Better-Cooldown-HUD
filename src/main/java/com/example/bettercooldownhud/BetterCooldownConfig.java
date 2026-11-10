@@ -6,17 +6,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 
 public final class BetterCooldownConfig {
     public static final int GRID = 11;
-    public static final int ORIGIN = GRID / 2;          // centre cell, the (0,0) of the grid
+    public static final int ORIGIN = GRID / 2;
     public static final int ORIGIN_INDEX = ORIGIN * GRID + ORIGIN;
 
     public static final int[] PALETTE = {
@@ -25,13 +22,12 @@ public final class BetterCooldownConfig {
     };
 
     private static final String HEADER = "Better Cooldown HUD settings. "
-            + "shape: painted cell indices in paint order. "
-            + "start: the cell where the cooldown starts (-1 = first painted cell). "
+            + "shape: painted cell indices. start: cell where the cooldown starts (-1 = centre). "
             + "crosshair_color / cooldown_color: ARGB hex, e.g. FF3366FF. "
             + "crosshair_size: 0 = default (1 px per cell), up to 4.";
 
-    public static int crosshairColor = 0xFF3366FF; // blue
-    public static int cooldownColor = 0xFFFF3333;  // red
+    public static int crosshairColor = 0xFF3366FF;
+    public static int cooldownColor = 0xFFFF3333;
     public static int crosshairSize = 0;
     public static int start = -1;
     public static final List<Integer> shape = new ArrayList<>();
@@ -42,10 +38,23 @@ public final class BetterCooldownConfig {
         return FabricLoader.getInstance().getConfigDir().resolve("bettercooldownhud.properties");
     }
 
+    /** The default plus sign (9 px across, centred on the origin), as grid cell indices. */
+    public static List<Integer> defaultPlus() {
+        List<Integer> plus = new ArrayList<>();
+        plus.add(ORIGIN_INDEX);
+        for (int d = 1; d <= 4; d++) {
+            plus.add(ORIGIN_INDEX + d);
+            plus.add(ORIGIN_INDEX - d);
+            plus.add(ORIGIN_INDEX + d * GRID);
+            plus.add(ORIGIN_INDEX - d * GRID);
+        }
+        return plus;
+    }
+
     public static void load() {
         Path path = path();
         Properties props = new Properties();
-        props.setProperty("shape", "");
+        props.setProperty("shape", join(defaultPlus()));
         props.setProperty("start", "-1");
         props.setProperty("crosshair_color", "FF3366FF");
         props.setProperty("cooldown_color", "FFFF3333");
@@ -57,6 +66,8 @@ public final class BetterCooldownConfig {
                     props.load(in);
                 }
             } else {
+                shape.clear();
+                shape.addAll(defaultPlus());
                 save();
                 return;
             }
@@ -71,6 +82,9 @@ public final class BetterCooldownConfig {
                 shape.add(idx);
             }
         }
+        if (shape.isEmpty()) {
+            shape.addAll(defaultPlus());
+        }
         start = parseInt(props.getProperty("start"), -1);
         crosshairColor = parseHex(props.getProperty("crosshair_color"), crosshairColor);
         cooldownColor = parseHex(props.getProperty("cooldown_color"), cooldownColor);
@@ -79,14 +93,7 @@ public final class BetterCooldownConfig {
 
     public static void save() {
         Properties props = new Properties();
-        StringBuilder cells = new StringBuilder();
-        for (int i = 0; i < shape.size(); i++) {
-            if (i > 0) {
-                cells.append(',');
-            }
-            cells.append(shape.get(i));
-        }
-        props.setProperty("shape", cells.toString());
+        props.setProperty("shape", join(shape));
         props.setProperty("start", String.valueOf(start));
         props.setProperty("crosshair_color", String.format("%08X", crosshairColor));
         props.setProperty("cooldown_color", String.format("%08X", cooldownColor));
@@ -103,83 +110,43 @@ public final class BetterCooldownConfig {
         }
     }
 
-    /** The painted shape, or a default plus sign if nothing has been painted yet. */
+    /** The painted crosshair, or the default plus if nothing is painted. */
     public static List<Integer> activeShape() {
-        if (!shape.isEmpty()) {
-            return shape;
-        }
-        List<Integer> plus = new ArrayList<>();
-        plus.add(ORIGIN_INDEX);
-        for (int d = 1; d <= ORIGIN; d++) {
-            plus.add(ORIGIN_INDEX + d);
-            plus.add(ORIGIN_INDEX - d);
-            plus.add(ORIGIN_INDEX + d * GRID);
-            plus.add(ORIGIN_INDEX - d * GRID);
-        }
-        return plus;
+        return shape.isEmpty() ? defaultPlus() : shape;
     }
 
-    /** The cell the cooldown starts from: the clicked cell if it's still painted, otherwise the first cell. */
+    /** The cell the cooldown starts from: the clicked cell if still painted, otherwise the centre. */
     public static int startCell() {
         List<Integer> cells = activeShape();
         if (start >= 0 && cells.contains(start)) {
             return start;
         }
-        return cells.get(0);
+        return cells.contains(ORIGIN_INDEX) ? ORIGIN_INDEX : cells.get(0);
     }
 
-    /** Cells reachable from the start by touching sides, in order from the start outward. */
-    private static List<Integer> reachFromStart() {
-        List<Integer> cells = activeShape();
-        Set<Integer> painted = new HashSet<>(cells);
-        Set<Integer> seen = new HashSet<>();
-        List<Integer> order = new ArrayList<>();
-        Deque<Integer> queue = new ArrayDeque<>();
-
-        int first = startCell();
-        queue.add(first);
-        seen.add(first);
-
-        int[][] steps = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        while (!queue.isEmpty()) {
-            int cur = queue.poll();
-            order.add(cur);
-            int x = cur % GRID;
-            int y = cur / GRID;
-            for (int[] s : steps) {
-                int nx = x + s[0];
-                int ny = y + s[1];
-                if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) {
-                    continue;
-                }
-                int next = ny * GRID + nx;
-                if (painted.contains(next) && seen.add(next)) {
-                    queue.add(next);
-                }
-            }
-        }
-        return order;
-    }
-
-    /** Full sweep order: connected cells from the start first, then any unconnected cells in paint order. */
+    /**
+     * Every painted cell, ordered left to right (by column, then row), starting at the start cell.
+     * After the rightmost column it wraps back to the leftmost.
+     */
     public static List<Integer> sweepOrder() {
-        List<Integer> order = reachFromStart();
-        Set<Integer> reached = new HashSet<>(order);
-        for (int cell : activeShape()) {
-            if (!reached.contains(cell)) {
-                order.add(cell);
-            }
-        }
+        List<Integer> sorted = new ArrayList<>(activeShape());
+        sorted.sort(Comparator.comparingInt((Integer i) -> i % GRID).thenComparingInt(i -> i / GRID));
+
+        int startPos = sorted.indexOf(startCell());
+        List<Integer> order = new ArrayList<>(sorted.subList(startPos, sorted.size()));
+        order.addAll(sorted.subList(0, startPos));
         return order;
     }
 
-    /** True if the centre cell is painted and touches the rest of the drawing from the start. */
-    public static boolean originConnected() {
-        return reachFromStart().contains(ORIGIN_INDEX);
-    }
-
-    public static int currentColorCrosshair() {
-        return crosshairColor;
+    private static String join(List<Integer> cells) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(cells.get(i));
+        }
+        return sb.toString();
     }
 
     private static int parseHex(String value, int fallback) {
