@@ -57,7 +57,6 @@ public class BetterCooldownScreen extends Screen {
         addDrawableChild(ButtonWidget.builder(Text.literal("Reset to default"), b -> {
             BetterCooldownConfig.shape.clear();
             BetterCooldownConfig.shape.addAll(BetterCooldownConfig.defaultPlus());
-            BetterCooldownConfig.start = -1;
         }).dimensions(rightX, rowY + 24, buttonW, 20).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
@@ -101,11 +100,8 @@ public class BetterCooldownScreen extends Screen {
             fillCell(context, idx, BetterCooldownConfig.crosshairColor);
         }
 
-        // Grey outline on the centre cell (0,0)
+        // Grey outline on the centre cell, where the cooldown spreads from
         outlineCell(context, BetterCooldownConfig.ORIGIN_INDEX, GREY);
-
-        // Yellow outline on the cell where the cooldown starts
-        outlineCell(context, BetterCooldownConfig.startCell(), YELLOW);
 
         // Colour swatches beside the colour buttons
         drawSwatch(context, leftX + buttonW - SWATCH - 6, rowY + 4, BetterCooldownConfig.crosshairColor);
@@ -113,14 +109,11 @@ public class BetterCooldownScreen extends Screen {
 
         int noteY = rowY + 74;
         context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Left-click a painted cell: set where the cooldown starts (yellow)"),
+                Text.literal("Left-click an empty cell: paint   |   Right-click: erase"),
                 this.width / 2, noteY, 0xFFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Left-click an empty cell: paint   |   Right-click: erase"),
+                Text.literal("The cooldown spreads from the centre (grey) to every side at once"),
                 this.width / 2, noteY + 12, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("The cooldown sweeps left to right through every painted cell"),
-                this.width / 2, noteY + 24, 0xFFFFFF);
     }
 
     private void fillCell(DrawContext context, int idx, int colour) {
@@ -145,7 +138,7 @@ public class BetterCooldownScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        if (handleClick(click.x(), click.y(), click.button() == 1, false)) {
+        if (handleClick(click.x(), click.y(), click.button() == 1)) {
             return true;
         }
         return super.mouseClicked(click, doubled);
@@ -153,17 +146,14 @@ public class BetterCooldownScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        if (handleClick(click.x(), click.y(), click.button() == 1, true)) {
+        if (handleClick(click.x(), click.y(), click.button() == 1)) {
             return true;
         }
         return super.mouseDragged(click, deltaX, deltaY);
     }
 
-    /**
-     * Left click on an empty cell paints it. Left click on a painted cell sets the start (not while dragging).
-     * Right click erases a cell, but never the last one.
-     */
-    private boolean handleClick(double mouseX, double mouseY, boolean right, boolean dragging) {
+    /** Left click or drag paints an empty cell. Right click or drag erases a cell, but never the last one. */
+    private boolean handleClick(double mouseX, double mouseY, boolean right) {
         int idx = cellAt(mouseX, mouseY);
         if (idx < 0) {
             return false;
@@ -171,19 +161,10 @@ public class BetterCooldownScreen extends Screen {
 
         List<Integer> shape = BetterCooldownConfig.shape;
         if (right) {
-            if (shape.size() > 1 && shape.remove(Integer.valueOf(idx))) {
-                if (idx == BetterCooldownConfig.start) {
-                    BetterCooldownConfig.start = -1;
-                }
+            if (shape.size() > 1) {
+                shape.remove(Integer.valueOf(idx));
             }
-            return true;
-        }
-
-        if (shape.contains(idx)) {
-            if (!dragging) {
-                BetterCooldownConfig.start = idx;
-            }
-        } else {
+        } else if (!shape.contains(idx)) {
             shape.add(idx);
         }
         return true;
