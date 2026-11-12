@@ -89,4 +89,63 @@ public final class BetterCooldownConfig {
 
     public static void save() {
         Properties props = new Properties();
-        props.setProperty("shape", join(sh
+        props.setProperty("shape", join(shape));
+        props.setProperty("crosshair_color", String.format("%08X", crosshairColor));
+        props.setProperty("cooldown_color", String.format("%08X", cooldownColor));
+        props.setProperty("crosshair_size", String.valueOf(crosshairSize));
+
+        try {
+            Path path = path();
+            Files.createDirectories(path.getParent());
+            try (OutputStream out = Files.newOutputStream(path)) {
+                props.store(out, HEADER);
+            }
+        } catch (Exception e) {
+            // Settings still apply for this session if the file can't be written
+        }
+    }
+
+    /** The painted crosshair, or the default plus if nothing is painted. */
+    public static List<Integer> activeShape() {
+        return shape.isEmpty() ? defaultPlus() : shape;
+    }
+
+    /** The cooldown always spreads from the centre cell. */
+    public static int startCell() {
+        return ORIGIN_INDEX;
+    }
+
+    /** Straight-line distance of a cell from the centre, in cells. */
+    public static double distanceFromOrigin(int idx) {
+        int dx = idx % GRID - ORIGIN;
+        int dy = idx / GRID - ORIGIN;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private static String join(List<Integer> cells) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(cells.get(i));
+        }
+        return sb.toString();
+    }
+
+    private static int parseHex(String value, int fallback) {
+        try {
+            return (int) Long.parseLong(value.trim(), 16);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+}
