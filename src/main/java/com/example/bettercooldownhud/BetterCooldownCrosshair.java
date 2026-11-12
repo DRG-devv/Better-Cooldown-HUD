@@ -9,31 +9,36 @@ import java.util.List;
 public final class BetterCooldownCrosshair {
     private BetterCooldownCrosshair() {}
 
-    /** Draws the custom crosshair, with the cooldown sweep. Called from the HUD mixin in place of vanilla's. */
+    /** Draws the custom crosshair. The cooldown spreads outward from the centre, reaching every side at the same time. */
     public static void render(DrawContext context, MinecraftClient client, float tickDelta) {
         ClientPlayerEntity player = client.player;
         if (player == null) {
             return;
         }
 
-        List<Integer> cells = BetterCooldownConfig.sweepOrder();
-        int count = cells.size();
+        List<Integer> cells = BetterCooldownConfig.activeShape();
         int cx = client.getWindow().getScaledWidth() / 2;
         int cy = client.getWindow().getScaledHeight() / 2;
         int px = Math.max(1, BetterCooldownConfig.crosshairSize);
 
         float progress = player.getAttackCooldownProgress(tickDelta);
 
-        // Cells earlier in the sweep are ready (crosshair colour); the rest are still cooling down (cooldown colour)
-        int ready = Math.min(count, (int) Math.floor(progress * count));
+        // The farthest painted cell sets the scale; the spread reaches it at 100%
+        double maxDist = 0;
+        for (int idx : cells) {
+            maxDist = Math.max(maxDist, BetterCooldownConfig.distanceFromOrigin(idx));
+        }
+        double reach = progress * maxDist;
 
-        for (int i = 0; i < count; i++) {
-            int idx = cells.get(i);
+        for (int idx : cells) {
             int gx = idx % BetterCooldownConfig.GRID - BetterCooldownConfig.ORIGIN;
             int gy = idx / BetterCooldownConfig.GRID - BetterCooldownConfig.ORIGIN;
             int sx = cx + gx * px;
             int sy = cy + gy * px;
-            int colour = i < ready ? BetterCooldownConfig.crosshairColor : BetterCooldownConfig.cooldownColor;
+
+            boolean ready = progress >= 1.0f
+                    || (progress > 0.0f && BetterCooldownConfig.distanceFromOrigin(idx) <= reach);
+            int colour = ready ? BetterCooldownConfig.crosshairColor : BetterCooldownConfig.cooldownColor;
             context.fill(sx, sy, sx + px, sy + px, colour);
         }
     }
